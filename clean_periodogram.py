@@ -13,7 +13,10 @@ Version 0.0.0
 import numpy as np
 from scipy.signal import convolve
 from astropy.io import fits
+<<<<<<< HEAD
 import time as tt
+=======
+>>>>>>> fb7870f87dbd947f7888f9e34d31814046e0ad21
 try:
     from fastDFT import dft_l, dft_l_ne
     USE = "FAST"
@@ -32,8 +35,13 @@ TESTPATH = WORKSPACE + '/Programs/CLEAN_periodogram_IDL/test.fits'
 TESTPATH = WORKSPACE + '/Data/Elodie/ARG_54_lightcurve.fits'
 
 # whether to bin data
+<<<<<<< HEAD
 BINDATA = True
 BINSIZE = 0.1
+=======
+BINDATA = False
+BINSIZE = 0.01
+>>>>>>> fb7870f87dbd947f7888f9e34d31814046e0ad21
 
 
 # =============================================================================
@@ -41,7 +49,11 @@ BINSIZE = 0.1
 # =============================================================================
 def dfourt(time, data, df=None, fmax=None, ppb=None, log=False):
     """
+<<<<<<< HEAD
     Computes the dirty discrete Fourier Transform, for a 1-D time series, "data",
+=======
+    Commutes the dirt discrete Fourier Transform, for a 1-D time series, "data",
+>>>>>>> fb7870f87dbd947f7888f9e34d31814046e0ad21
     which is samples at arbitrarily spaced time intervals given by "time"
 
     Python conversion of dfourt.pro http://www.arm.ac.uk/~csj/idl/CLEAN/
@@ -261,10 +273,17 @@ def calc_freq(time, df=None, fmax=None, ppb=None):
     return freq
 
 
+<<<<<<< HEAD
 def clean(freq, wfn, dft, gain=0.5, ncl=100, log=False):
     """
     Deconvolve the spectral window function "wfn" from the "dirty" discrete
     Fourier Transform "dft" by using a 1-D version of the interactive CLEAN
+=======
+def clean_periodogram(freq, wfn, dft, gain, ncl, log=False):
+    """
+    Deconvolve the spectral window function "wfn" fomr the "dirt" discrete
+    Fourier Transform "dft" by using a 1-D version of the iteractive CLEAN
+>>>>>>> fb7870f87dbd947f7888f9e34d31814046e0ad21
     algorithm [Hoegbom, J. A. 1974, A&AS, 15, 417]
 
     Python conversion of clean.pro http://www.arm.ac.uk/~csj/idl/CLEAN/
@@ -277,14 +296,23 @@ def clean(freq, wfn, dft, gain=0.5, ncl=100, log=False):
                   transform
 
     :param gain: fraction of window function to subtract per iteration
+<<<<<<< HEAD
                  (default: 0.5)
 
     :param ncl: number of CLEAN iterations to perform (default: 100)
+=======
+
+    :param ncl: number of CLEAN iterations to perform
+>>>>>>> fb7870f87dbd947f7888f9e34d31814046e0ad21
 
     :param log: boolean, if True prints progress to standard output
                          if False silent
 
+<<<<<<< HEAD
     :return cdft: numpy array of complex numbers, the CLEANed perodogram
+=======
+    :return cdft: numpy array of complex numbers, the CLEANed periodogram
+>>>>>>> fb7870f87dbd947f7888f9e34d31814046e0ad21
 
     Through  successive subtractions of fractions of WFN, the couplings
     between physical frequencies and their aliases or pseudo-aliases will be
@@ -448,7 +476,10 @@ def clean_beam(wfn, b_sigma=None):
 
     # "one-sided" beam, purely real
     x = np.arange(0, n_beam, 1.0)
+<<<<<<< HEAD
     # Gaussian function
+=======
+>>>>>>> fb7870f87dbd947f7888f9e34d31814046e0ad21
     y = np.exp(-const*x**2)
 
     # define real part of beam
@@ -620,6 +651,7 @@ def clean_subtract_ccomp(wfn, dft, ccomp, l):
     return dft
 
 
+<<<<<<< HEAD
 def clean_periodogram(time, data, **kwargs):
     """
     Takes a time and data vector, computes a frequency grid, dirty discrete
@@ -778,6 +810,8 @@ def clean_periodogram(time, data, **kwargs):
         return cdft
 
 
+=======
+>>>>>>> fb7870f87dbd947f7888f9e34d31814046e0ad21
 def plot_test_graph(time, data, freq, cdft, logged=True):
     """
     Plots a matplotlib test plot of the raw data and the CLEANed periodogram
@@ -987,6 +1021,10 @@ def bin_data(time, data, edata=None, binsize=None, log=False):
 # =============================================================================
 # Main code here
 if __name__ == "__main__":
+<<<<<<< HEAD
+=======
+    import time
+>>>>>>> fb7870f87dbd947f7888f9e34d31814046e0ad21
     # ----------------------------------------------------------------------
     # Load data
     print('\n Loading data...')
@@ -1007,9 +1045,31 @@ if __name__ == "__main__":
             time_arr, data_arr = bin_data(time_arr, data_arr, edata_arr,
                                           binsize=BINSIZE, log=True)
     # ----------------------------------------------------------------------
+<<<<<<< HEAD
     # Run clean
     results = clean_periodogram(time_arr, data_arr, log=True, full=True)
     freqs, wfn_arr, dft_arr, cdft_arr = results
+=======
+    # Compute the "dirty" discrete Fourier transform. Use the default frequency
+    # parameters to describe the frequency grid. The defaults are selected
+    # by leaving df, fmax and ppb out of the function
+    print('\n Computing "dirty" discrete Fourier transform...')
+    start1 = time.time()
+    freqs, wfn_arr, dft_arr = dfourt(time_arr, data_arr, log=True)
+    end1 = time.time()
+    print('\n\t Took {0} s'.format(end1 - start1))
+    # ----------------------------------------------------------------------
+    # Clean the DFT. For this demonstration, use a gain of 0.5 and continue
+    # for 100 iterations
+    print('\n Computing clean periodogram...')
+    test_gain = 0.5
+    test_ncl = 100
+    start2 = time.time()
+    cdft_arr = clean_periodogram(freqs, wfn_arr, dft_arr, test_gain, test_ncl,
+                                 log=True)
+    end2 = time.time()
+    print('\n\t Took {0} s'.format(end2 - start2))
+>>>>>>> fb7870f87dbd947f7888f9e34d31814046e0ad21
     # ----------------------------------------------------------------------
     # Plot the CLEANed amplitude spectrum. The factor of 2 allows for the
     # "mirror image" of the DFT at nagative frequencies
