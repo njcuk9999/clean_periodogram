@@ -41,8 +41,8 @@ BINSIZE = 0.1
 # =============================================================================
 def dfourt(time, data, df=None, fmax=None, ppb=None, log=False):
     """
-    Computes the dirty discrete Fourier Transform, for a 1-D time series, "data",
-    which is samples at arbitrarily spaced time intervals given by "time"
+    The frequency grid, "freq", on which the spectral window function "wfn"
+    and "dft" are computed, controlled by "df", "fmax" and "ppb".
 
     Python conversion of dfourt.pro http://www.arm.ac.uk/~csj/idl/CLEAN/
 
@@ -58,6 +58,8 @@ def dfourt(time, data, df=None, fmax=None, ppb=None, log=False):
 
     :param log: boolean, if True prints progress to standard output
                          if False silent
+
+    :return freq:
 
     The frequency grid, "freq", on which the spectral window function "wfn"
     and "dft" are computed, controlled by "df", "fmax" and "ppb".
@@ -81,10 +83,6 @@ def dfourt(time, data, df=None, fmax=None, ppb=None, log=False):
 
     :return freq: numpy array of floats, frequency vector
 
-    :return wfn:  numpy array of complex numbers, spectral window function
-
-    :return dft:  numpy array of complex numbers, "dirty" discrete Fourier
-                  transform
     """
     # deal with logging
     if log:
@@ -115,21 +113,71 @@ def dfourt(time, data, df=None, fmax=None, ppb=None, log=False):
     # Sort time vector
     sort = np.argsort(time)
     time = time[sort]
+    # Subtract mean time and mean data value from respective vectors
+    tvec = time - np.mean(time)
+    # get the frequency grid
+    freq = calc_freq(tvec, df, fmax, ppb)
+    # return frequency grid
+    return freq
+
+
+def run_discrete_fourier_transform(freq, time, data, log=False, use=USE):
+    """
+    Computes the dirty discrete Fourier Transform, for a 1-D time series, "data",
+    which is samples at arbitrarily spaced time intervals given by "time"
+
+    Python conversion of dfourt.pro http://www.arm.ac.uk/~csj/idl/CLEAN/
+
+    :param time: numpy array or list, input time(independent) vector
+
+    :param data: numpy array or list, input dependent vector
+
+    :param freq: numpy array, frequency grid calculated from the time vector
+
+    :param log: boolean, if True prints progress to standard output
+                         if False silent
+
+    :param use: string, if "FAST" will attempt to use numexpr to speed up
+                the discrete fourier transform (requires python module
+                numexpr to run) else tries to run a very using numpy
+                (around 6 times slower)
+
+    :return wfn:  numpy array of complex numbers, spectral window function
+
+    :return dft:  numpy array of complex numbers, "dirty" discrete Fourier
+                  transform
+
+    Note that this implementation is completely general, and therefore slow,
+    since it cannot make use of the timing enhancements of the FFT.
+
+    The IDL implementation of the DFT is based on a suite of FORTRAN routines
+    developed by Roberts et al.  For more information concerning the algorithm,
+    please refer to:
+        Roberts, D.H., Lehar, J., & Dreher, J. W. 1987, AJ, 93, 968
+        "Time Series Analysis with CLEAN. I. Derivation of a Spectrum"
+
+
+    """
+    # remove all infinities and NaNs
+    nanmask = np.isfinite(time) & np.isfinite(data)
+    time = time[nanmask]
+    data = data[nanmask]
+    # Sort time vector
+    sort = np.argsort(time)
+    time = time[sort]
     data = data[sort]
     # Subtract mean time and mean data value from respective vectors
     tvec = time - np.mean(time)
     dvec = data - np.mean(data)
-    # get the frequency grid
-    freq = calc_freq(tvec, df, fmax, ppb)
     # Calculate the Fourier transform
     # The DFT is normalised to have the mean value of the data at zero frequency
-    if USE == 'FAST':
+    if use == 'FAST':
         wfn, dft = discrete_fourier_transform2(freq, tvec, dvec, log=log)
     else:
         wfn, dft = discrete_fourier_transform1(freq, tvec, dvec, log=log)
     # return frequency vector, spectral window function and "dirty" discrete
     # Fourier transform
-    return freq, wfn, dft
+    return wfn, dft
 
 
 def discrete_fourier_transform1(freq, tvec, dvec, log=False):
@@ -633,15 +681,27 @@ def clean_periodogram(time, data, **kwargs):
 
     kwargs are as follows:
 
-        - df
-        - fmax
-        - ppb
-        - gain
-        - ncl
-        - log
-        - full
+        - freq:   numpy array, frequency grid calculated from the time vector
+        - df      float, frequency increment for the FT (default: 1/T)
+        - fmax    float, max frequency in the FT        (default: 1/min(dt))
+        - ppb     float, points per restoring beam      (default: 4)
+        - gain    fraction of window function to subtract per iteration
+                  (default: 0.5)
+        - ncl     number of CLEAN iterations to perform (default: 100)
+        - log     boolean, if True prints progress to standard output
+                  if False silent
+        - full    boolean, if True
+        - use     string, if "FAST" will attempt to use numexpr to speed up
+                  the discrete fourier transform (requires python module
+                  numexpr to run) else tries to run a very using numpy
+                  (around 6 times slower)
+
+    Definitions and explanations for these keywords are found in
+    "dfourt" and "clean" (see below)
 
     Uses the dfourt and clean functions.
+    Total conversion and update of IDL routines located at:
+    http://www.arm.ac.uk/~csj/idl/CLEAN/
 
     ---------------------------------------------------------------------------
     dfourt:
@@ -738,6 +798,7 @@ def clean_periodogram(time, data, **kwargs):
     """
     # -------------------------------------------------------------------------
     # Deal with keyword arguments
+    freq = kwargs.get('freq', None)
     df = kwargs.get('df', None)
     fmax = kwargs.get('fmax', None)
     ppb = kwargs.get('ppb', 4)
@@ -745,15 +806,19 @@ def clean_periodogram(time, data, **kwargs):
     ncl = kwargs.get('ncl', 100)
     log = kwargs.get('log', False)
     full = kwargs.get('full', False)
+    use = kwargs.get('use', USE)
     # -------------------------------------------------------------------------
-    # Compute the "dirty" discrete Fourier transform. Use the default frequency
-    # parameters to describe the frequency grid. The defaults are selected
-    # by leaving df, fmax and ppb out of the function
+    # Use the default frequency parameters to describe the frequency grid.
+    # The defaults are selected by leaving df, fmax and ppb out of the function
+    if freq is None:
+        freq = dfourt(time_arr, data_arr, df, fmax, ppb, log)
+    # -------------------------------------------------------------------------
+    # Compute the "dirty" discrete Fourier transform.
     start1 = 0.0
     if log:
         print('\n Computing "dirty" discrete Fourier transform...')
         start1 = tt.time()
-    freq, wfn, dft = dfourt(time_arr, data_arr, df, fmax, ppb, log)
+        wfn, dft = run_discrete_fourier_transform(freq, time, data, log, use)
     if log:
         end1 = tt.time()
         print('\n\t Took {0} s'.format(end1 - start1))
