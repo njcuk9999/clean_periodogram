@@ -29,7 +29,7 @@ WORKSPACE = '/Astro/Projects/RayPaul_Work/SuperWASP/'
 TESTPATH = WORKSPACE + './CLEAN_periodogram_IDL/test.fits'
 
 # test data 2
-TESTPATH = WORKSPACE + '/Data/Elodie/ARG_54_lightcurve.fits'
+# TESTPATH = WORKSPACE + '/Data/Elodie/ARG_54_lightcurve.fits'
 
 # whether to bin data
 BINDATA = True
@@ -39,7 +39,7 @@ BINSIZE = 0.1
 # =============================================================================
 # Define functions
 # =============================================================================
-def dfourt(time, data, df=None, fmax=None, ppb=None, log=False):
+def dfourt(time, data, df=None, fmax=None, ppb=None, dtmin=None, log=False):
     """
     The frequency grid, "freq", on which the spectral window function "wfn"
     and "dft" are computed, controlled by "df", "fmax" and "ppb".
@@ -51,10 +51,15 @@ def dfourt(time, data, df=None, fmax=None, ppb=None, log=False):
     :param data: numpy array or list, input dependent vector
 
     :param df:   float, frequency increment for the FT (default: 1/T)
+                 See Note 2 below
 
     :param fmax: float, max frequency in the FT        (default: 1/min(dt))
+                 See Note 3 below
 
     :param ppb:  float, points per restoring beam      (default: 4)
+
+    :param dtmin: float, minimum size between time elements (default: 1e-4)
+                  See Note 4 below
 
     :param log: boolean, if True prints progress to standard output
                          if False silent
@@ -80,6 +85,17 @@ def dfourt(time, data, df=None, fmax=None, ppb=None, log=False):
     Note 2: T = total time spanned = max(time) - min(time)
 
     Note 3: dt = 2. * [minimum time separation]
+
+    Note 4: the number of frequencies can get very large if the minimum time
+            separation is small
+
+            number of frequencies = fmax*ppb/df
+
+            therefore "dtmin" sets the minimum time separation allowable
+            which caps the value of fmax = 1/dtmin if fmax is greater than this
+            value, this is to allow the code to run even if the minimum
+            separation in points is zero, note even at the default dtmin
+            the code can take a significant amount of time id df is small
 
     :return freq: numpy array of floats, frequency vector
 
@@ -118,6 +134,81 @@ def dfourt(time, data, df=None, fmax=None, ppb=None, log=False):
     # get the frequency grid
     freq = calc_freq(tvec, df, fmax, ppb)
     # return frequency grid
+    return freq
+
+
+def calc_freq(time, df=None, fmax=None, ppb=None, dtmin=None):
+    """
+    Calculates the "time" vector and computes the frequency grid that will be
+    used to calculate the discrete Fourier Transform of the time series.
+
+    :param time: numpy array or list, input time(independent) vector
+
+    :param df:   float, frequency increment for the FT (default: 1/T)
+                 See Note 2 below
+
+    :param fmax: float, max frequency in the FT        (default: 1/min(dt))
+                 See Note 3 below
+
+    :param ppb:  float, points per restoring beam      (default: 4)
+
+    :param dtmin: float, minimum size between time elements (default: 1e-4)
+                  See Note 4 below
+
+    The frequency grid, "freq", on which the spectral window function "wfn"
+    and "dft" are computed, controlled by "df", "fmax" and "ppb".
+
+    Note 1: The frequency resolution element "df" is oversampled by "ppb" to
+            ensure accurate determination of the location of peaks in the
+            Fourier Transform.
+
+    Note 2: T = total time spanned = max(time) - min(time)
+
+    Note 3: dt = 2. * [minimum time separation]
+
+    Note 4: the number of frequencies can get very large if the minimum time
+            separation is small
+
+            number of frequencies = fmax*ppb/df
+
+            therefore "dtmin" sets the minimum time separation allowable
+            which caps the value of fmax = 1/dtmin if fmax is greater than this
+            value, this is to allow the code to run even if the minimum
+            separation in points is zero, note even at the default dtmin
+            the code can take a significant amount of time id df is small
+
+
+    :return freq: numpy array, frequency grid calculated from the time vector
+    """
+
+
+    # need to set a dt min threshold (and thus a maximum fmax and maximum
+    # number of frequencies (this number can be huge if the separation between
+    # times is small (or worse is zero --> infinite frequencies)
+    if dtmin is None:
+        # Default is "1e-3" which can still lead to problems is "df" is
+        # very small as number of frequencies = fmax*ppb/df
+        dtmin = 1.0e-4
+    # Freqeuncy resolution: default is 1./(total time spanned)
+    if df is None:
+        df = 1./(max(time) - min(time))
+    # Maximum frequency: default is 1. / (2. * [minimum time separation])
+    # Must ignore two data values at same time point (otherwise frequency
+    # separation is infinite
+    if fmax is None:
+        fmax = 1./(2 * min(time[1: -1] - time[0: -2]))
+    if fmax > 1.0/dtmin:
+        fmax = 1.0/dtmin
+    # Points per beam: default is 4
+    if ppb is None:
+        ppb = 4.0
+    # size of frequency increment
+    dfreq = df/ppb
+    # Number of frequencies
+    mfreq = (fmax/dfreq) + 1
+    # frequency vector
+    freq = np.arange(0, 2*mfreq, 1.0)*dfreq
+    # return frequency vector
     return freq
 
 
@@ -261,52 +352,6 @@ def discrete_fourier_transform2(freq, tvec, dvec, log=False):
         # Return DFT (faster than discrete_fourer_transform1 but slower than
         # numexpr by ~ factor of 6 essentially the same idea as slow DFT)
         return dft_l(freq, tvec, dvec, log)
-
-
-def calc_freq(time, df=None, fmax=None, ppb=None):
-    """
-    Calculates the "time" vector and computes the frequency grid that will be
-    used to calculate the discrete Fourier Transform of the time series.
-
-    :param time: numpy array or list, input time(independent) vector
-
-    :param df:   float, frequency increment for the FT (default: 1/T)
-
-    :param fmax: float, max frequency in the FT        (default: 1/min(dt))
-
-    :param ppb:  float, points per restoring beam      (default: 4)
-
-    The frequency grid, "freq", on which the spectral window function "wfn"
-    and "dft" are computed, controlled by "df", "fmax" and "ppb".
-
-    Note 1: The frequency resolution element "df" is oversampled by "ppb" to
-            ensure accurate determination of the location of peaks in the
-            Fourier Transform.
-
-    Note 2: T = total time spanned = max(time) - min(time)
-
-    Note 3: dt = 2. * [minimum time separation]
-
-    :return freq: numpy array, frequency grid calculated from the time vector
-    """
-
-    # Freqeuncy resolution: default is 1./(total time spanned)
-    if df is None:
-        df = 1./(max(time) - min(time))
-    # Maximum frequency: default is 1. / (2. * [minimum time separation])
-    if fmax is None:
-        fmax = 1./(2 * min(time[1: -1] - time[0: -2]))
-    # Points per beam: default is 4
-    if ppb is None:
-        ppb = 4.0
-    # size of frequency increment
-    dfreq = df/ppb
-    # Number of frequencies
-    mfreq = (fmax/dfreq) + 1
-    # frequency vector
-    freq = np.arange(0, 2*mfreq, 1.0)*dfreq
-    # return frequency vector
-    return freq
 
 
 def clean(freq, wfn, dft, gain=0.5, ncl=100, log=False):
@@ -682,15 +727,26 @@ def clean_periodogram(time, data, **kwargs):
     kwargs are as follows:
 
         - freq:   numpy array, frequency grid calculated from the time vector
-        - df      float, frequency increment for the FT (default: 1/T)
-        - fmax    float, max frequency in the FT        (default: 1/min(dt))
+                  ONLY uses smallest 50% for DFt and CFT - See Note 1
+
+        - df      float, frequency increment for the FT
+                  (default: 1/T See Note 2)
+
+        - fmax    float, max frequency in the FT
+                  (default: 1/min(dt) See Note 3)
+
         - ppb     float, points per restoring beam      (default: 4)
+
         - gain    fraction of window function to subtract per iteration
                   (default: 0.5)
+
         - ncl     number of CLEAN iterations to perform (default: 100)
+
         - log     boolean, if True prints progress to standard output
                   if False silent
+
         - full    boolean, if True
+
         - use     string, if "FAST" will attempt to use numexpr to speed up
                   the discrete fourier transform (requires python module
                   numexpr to run) else tries to run a very using numpy
@@ -702,6 +758,13 @@ def clean_periodogram(time, data, **kwargs):
     Uses the dfourt and clean functions.
     Total conversion and update of IDL routines located at:
     http://www.arm.ac.uk/~csj/idl/CLEAN/
+
+    Note 1: by design we don't use the smallest 50% of times or the largest
+            50% of frequencies in the DFT so MUST define frequencies accordingly
+
+    Note 2: T = total time spanned = max(time) - min(time)
+
+    Note 3: dt = 2. * [minimum time separation]
 
     ---------------------------------------------------------------------------
     dfourt:
@@ -798,6 +861,9 @@ def clean_periodogram(time, data, **kwargs):
     """
     # -------------------------------------------------------------------------
     # Deal with keyword arguments
+    for fname in ['frequency', 'freqs', 'freq']:
+        if fname in kwargs:
+            kwargs['freq'] = kwargs[fname]
     freq = kwargs.get('freq', None)
     df = kwargs.get('df', None)
     fmax = kwargs.get('fmax', None)
@@ -812,6 +878,9 @@ def clean_periodogram(time, data, **kwargs):
     # The defaults are selected by leaving df, fmax and ppb out of the function
     if freq is None:
         freq = dfourt(time, data, df, fmax, ppb, log)
+    # input frequencies must be in order from low to high!
+    else:
+        freq = np.sort(freq)
     # -------------------------------------------------------------------------
     # Compute the "dirty" discrete Fourier transform.
     start1 = 0.0
@@ -1008,9 +1077,9 @@ def bin_data(time, data, edata=None, binsize=None, log=False):
     # if len(time) is less than 1000
     if binsize is None:
         maxbins = np.min(len(time), 1000)
-        bins = np.linspace(0, max(time), maxbins)
+        bins = np.linspace(min(time), max(time), maxbins)
     else:
-        bins = np.arange(0, max(time), binsize)
+        bins = np.arange(min(time), max(time), binsize)
 
     # remove nans
     nanmask = np.isfinite(time) & np.isfinite(data)
