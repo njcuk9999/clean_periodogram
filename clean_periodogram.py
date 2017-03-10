@@ -26,7 +26,7 @@ except ModuleNotFoundError:
 WORKSPACE = '/Astro/Projects/RayPaul_Work/SuperWASP/'
 
 # Test data 1
-TESTPATH = WORKSPACE + '/Programs/CLEAN_periodogram_IDL/test.fits'
+TESTPATH = WORKSPACE + './CLEAN_periodogram_IDL/test.fits'
 
 # test data 2
 TESTPATH = WORKSPACE + '/Data/Elodie/ARG_54_lightcurve.fits'
@@ -811,7 +811,7 @@ def clean_periodogram(time, data, **kwargs):
     # Use the default frequency parameters to describe the frequency grid.
     # The defaults are selected by leaving df, fmax and ppb out of the function
     if freq is None:
-        freq = dfourt(time_arr, data_arr, df, fmax, ppb, log)
+        freq = dfourt(time, data, df, fmax, ppb, log)
     # -------------------------------------------------------------------------
     # Compute the "dirty" discrete Fourier transform.
     start1 = 0.0
