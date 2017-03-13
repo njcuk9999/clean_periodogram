@@ -19,6 +19,7 @@ import MySQLdb
 import pandas
 from tqdm import tqdm
 from astropy.stats import LombScargle
+import os
 
 
 # =============================================================================
@@ -67,7 +68,9 @@ LABELS = ['Unbinned computed freq',
           'binsize=0.1  linear spacing',
           'binsize=0.01  linear spacing']
 # define any set we don't want to run (using position in above arrays)
-SKIP = [0]
+SKIP = ['BPC_47A', 'BPC_47B']
+# boolean, skip those with files already found
+SKIPDONE = True
 
 
 # =============================================================================
@@ -84,7 +87,7 @@ def get_list_of_objects_from_db(conn):
     # ----------------------------------------------------------------------
     # find all systemids
     print("\nGetting list of objects...")
-    query1 = "SELECT CONCAT(c.systemid,'_',c.comp)"
+    query1 = "SELECT CONCAT(c.systemid,c.comp)"
     query1 += " AS sid FROM {0} AS c".format(TABLE)
     query1 += " where c.systemid is not null and c.systemid <> ''"
     rawdata = pandas.read_sql_query(query1, conn)
@@ -102,7 +105,7 @@ def get_targets_from_file():
 
     targets = []
     for sit in range(len(sysids)):
-        targets.append('{0}_{1}'.format(sysids[sit], comps[sit]))
+        targets.append('{0}{1}'.format(sysids[sit], comps[sit]))
 
     return np.array(targets)
 
@@ -110,8 +113,10 @@ def get_targets_from_file():
 def get_data_from_db(sid, conn):
     # get data using SQL query on database
     query2 = "SELECT * FROM swasp_sep16_tab AS c"
-    query2 += " WHERE CONCAT(c.systemid,'_',c.comp) = '{0}'"
+    query2 += " WHERE CONCAT(c.systemid,c.comp) = '{0}'"
     data = pandas.read_sql_query(query2.format(sid), conn)
+    if len(data) < 3:
+        return None, None, None
     x, y = np.array(data['HJD']), np.array(data['FLUX2'])
     ey = np.array(data['FLUX2_ERR'])
     # sort into order (by x)
@@ -125,6 +130,12 @@ def get_data_from_db(sid, conn):
 
 def run_clean_periodogram(time, data, edata, sid, bdata, bsize, filelist,
                           label, freq=None):
+
+    # construct save name
+    savename = '{0}_{1}.fits'.format(sid, label)
+    # -----------------------------------------------------------------
+    if savename in os.listdir(SAVEPATH):
+        return filelist
     # -----------------------------------------------------------------
     # bin data
     if bdata:
@@ -137,9 +148,6 @@ def run_clean_periodogram(time, data, edata, sid, bdata, bsize, filelist,
     freqs, wfn, dft, cdft = clean_periodogram(time, data, freqs=freq,
                                               log=True, full=True)
     # -----------------------------------------------------------------
-    # construct save name
-    savename = '{0}_{1}.fits'.format(sid, label)
-
     # Save to file
     table = Table()
     table['times'] = 1.0 / freqs[0: len(cdft)]
@@ -240,7 +248,8 @@ if __name__ == "__main__":
         files, results = [], []
         for frow in range(len(BINDATA_ARR)):
             # skip parameters
-            if frow in SKIP:
+            if s_id in SKIP:
+                print("\n Skipping sid={0} by user request".format(s_id))
                 files.append(''), results.append([])
                 continue
             # get this iterations parameters
@@ -251,11 +260,19 @@ if __name__ == "__main__":
             # -----------------------------------------------------------------
             # Load data from data base
             result = get_data_from_db(s_id, conn1)
+            if None in result:
+                print("Skipping {0}: not data found.".format(target))
+                files.append(''), results.append([])
+                continue
             # run the clean periodogram code and save to file
             rargs = list(result) + [s_id, bindata, binsize, files, LABELS[frow]]
             files = run_clean_periodogram(*rargs, freq=FREQ_ARR[frow])
             # store the input data
             results.append(result)
+        # skip if file list non populated
+        if len(files) == 0 or (np.sum(np.unique(files) == ['']) == 1):
+            print("\n Skipped done sid={0}".format(s_id))
+            continue
         # set up plot
         print('\n\n\n Plotting graph...\n')
         plt.close()
