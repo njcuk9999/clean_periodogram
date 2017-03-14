@@ -212,7 +212,8 @@ def calc_freq(time, df=None, fmax=None, ppb=None, dtmin=None):
     return freq
 
 
-def run_discrete_fourier_transform(freq, time, data, log=False, use=USE):
+def run_discrete_fourier_transform(freq, time, data, log=False, use=USE,
+                                   maxsize=None):
     """
     Computes the dirty discrete Fourier Transform, for a 1-D time series, "data",
     which is samples at arbitrarily spaced time intervals given by "time"
@@ -263,7 +264,8 @@ def run_discrete_fourier_transform(freq, time, data, log=False, use=USE):
     # Calculate the Fourier transform
     # The DFT is normalised to have the mean value of the data at zero frequency
     if use == 'FAST':
-        wfn, dft = discrete_fourier_transform2(freq, tvec, dvec, log=log)
+        kwargs = dict(log=log, maxsize=maxsize)
+        wfn, dft = discrete_fourier_transform2(freq, tvec, dvec, **kwargs)
     else:
         wfn, dft = discrete_fourier_transform1(freq, tvec, dvec, log=log)
     # return frequency vector, spectral window function and "dirty" discrete
@@ -313,7 +315,7 @@ def discrete_fourier_transform1(freq, tvec, dvec, log=False):
     return wfn, dft
 
 
-def discrete_fourier_transform2(freq, tvec, dvec, log=False):
+def discrete_fourier_transform2(freq, tvec, dvec, log=False, maxsize=None):
     """
     Calculate the Discrete Fourier transform (slow scales with N^2)
     The DFT is normalised to have the mean value of the data at zero frequency
@@ -335,6 +337,12 @@ def discrete_fourier_transform2(freq, tvec, dvec, log=False):
     :param log: boolean, if True prints progress to standard output
                          if False silent
 
+    :param maxsize: int, maximum number of frequency rows to processes,
+                  default is 10,000 but large tvec/dvec array will use
+                  a large amount of RAM (64*len(tvec)*maxsize bits of data)
+                  If the program is using too much RAM, reduce "maxsize" or
+                  bin up tvec/dvec
+
     """
     # deal with logging
     if log:
@@ -345,13 +353,13 @@ def discrete_fourier_transform2(freq, tvec, dvec, log=False):
         import numexpr
         # Return DFT (faster than discrete_fourer_transform1 essentially
         # the same idea)
-        return dft_l_ne(freq, tvec, dvec, log)
+        return dft_l_ne(freq, tvec, dvec, log, maxsize)
     except ModuleNotFoundError:
         warn = '\n\nWarning: numexpr module needed to run fast DFT'
         print(warn + ' using slower DFT')
         # Return DFT (faster than discrete_fourer_transform1 but slower than
         # numexpr by ~ factor of 6 essentially the same idea as slow DFT)
-        return dft_l(freq, tvec, dvec, log)
+        return dft_l(freq, tvec, dvec, log, maxsize)
 
 
 def clean(freq, wfn, dft, gain=0.5, ncl=100, log=False):
@@ -752,6 +760,12 @@ def clean_periodogram(time, data, **kwargs):
                   numexpr to run) else tries to run a very using numpy
                   (around 6 times slower)
 
+        - maxsize int, maximum number of frequency rows to processes,
+                  default is 10,000 but large tvec/dvec array will use
+                  a large amount of RAM (64*len(tvec)*maxsize bits of data)
+                  If the program is using too much RAM, reduce "maxsize" or
+                  bin up tvec/dvec
+
     Definitions and explanations for these keywords are found in
     "dfourt" and "clean" (see below)
 
@@ -873,6 +887,7 @@ def clean_periodogram(time, data, **kwargs):
     log = kwargs.get('log', False)
     full = kwargs.get('full', False)
     use = kwargs.get('use', USE)
+    maxsize = kwargs.get('maxsize', None)
     # -------------------------------------------------------------------------
     # Use the default frequency parameters to describe the frequency grid.
     # The defaults are selected by leaving df, fmax and ppb out of the function
@@ -887,7 +902,8 @@ def clean_periodogram(time, data, **kwargs):
     if log:
         print('\n Computing "dirty" discrete Fourier transform...')
         start1 = tt.time()
-        wfn, dft = run_discrete_fourier_transform(freq, time, data, log, use)
+        wfn, dft = run_discrete_fourier_transform(freq, time, data, log, use,
+                                                  maxsize)
     if log:
         end1 = tt.time()
         print('\n\t Took {0} s'.format(end1 - start1))
