@@ -253,7 +253,7 @@ def dft_nfor_ne(freq, tvec, dvec):
 
 
 
-def dft_l(freq, tvec, dvec, log=False):
+def dft_l(freq, tvec, dvec, log=False, maxsize=None):
     """
     Calculate the Discrete Fourier transform (slow scales with N^2)
     The DFT is normalised to have the mean value of the data at zero frequency
@@ -269,21 +269,29 @@ def dft_l(freq, tvec, dvec, log=False):
     :param log: boolean, if True prints progress to standard output
                          if False silent
 
+    :param maxsize: int, maximum number of frequency rows to processes,
+                  default is 10,000 but large tvec/dvec array will use
+                  a large amount of RAM (64*len(tvec)*maxsize bits of data)
+                  If the program is using too much RAM, reduce "maxsize" or
+                  bin up tvec/dvec
+
     :return wfn:  numpy array of complex numbers, spectral window function
 
     :return dft:  numpy array of complex numbers, "dirty" discrete Fourier
                   transform
 
     """
-    if len(freq) < MAX_SIZE:
+    if maxsize is None:
+        maxsize = MAX_SIZE
+    if len(freq) < maxsize:
         wfn, dft = dft_nfor(freq, tvec, dvec)
     # Need to cut up frequencies into managable chunks (with a for loop)
     else:
-        chunks = int(np.ceil(len(freq)/MAX_SIZE))
+        chunks = int(np.ceil(len(freq)/maxsize))
         wfn, dft = [], []
         for chunk in __tqdmlog__(range(chunks), log):
             # break frequency into bits
-            freqi = freq[chunk*MAX_SIZE: (chunk+1)*MAX_SIZE]
+            freqi = freq[chunk*maxsize: (chunk+1)*maxsize]
             # get wfni and dfti for this chunk
             wfni, dfti = dft_nfor(freqi, tvec, dvec)
             # append to list
@@ -296,7 +304,7 @@ def dft_l(freq, tvec, dvec, log=False):
     return wfn, dft
 
 
-def dft_l_ne(freq, tvec, dvec, log=False):
+def dft_l_ne(freq, tvec, dvec, log=False, maxsize=None):
     """
     Calculate the Discrete Fourier transform (slow scales with N^2)
     The DFT is normalised to have the mean value of the data at zero frequency
@@ -312,21 +320,29 @@ def dft_l_ne(freq, tvec, dvec, log=False):
     :param log: boolean, if True prints progress to standard output
                          if False silent
 
+    :param maxsize: int, maximum number of frequency rows to processes,
+                  default is 10,000 but large tvec/dvec array will use
+                  a large amount of RAM (64*len(tvec)*maxsize bits of data)
+                  If the program is using too much RAM, reduce "maxsize" or
+                  bin up tvec/dvec
+
     :return wfn:  numpy array of complex numbers, spectral window function
 
     :return dft:  numpy array of complex numbers, "dirty" discrete Fourier
                   transform
 
     """
-    if len(freq) < MAX_SIZE:
+    if maxsize is None:
+        maxsize = MAX_SIZE
+    if len(freq) < maxsize:
         wfn, dft = dft_nfor_ne(freq, tvec, dvec)
     # Need to cut up frequencies into managable chunks (with a for loop)
     else:
-        chunks = int(np.ceil(len(freq)/MAX_SIZE))
+        chunks = int(np.ceil(len(freq)/maxsize))
         wfn, dft = [], []
         for chunk in __tqdmlog__(range(chunks), log):
             # break frequency into bits
-            freqi = freq[chunk*MAX_SIZE: (chunk+1)*MAX_SIZE]
+            freqi = freq[chunk*maxsize: (chunk+1)*maxsize]
             # get wfni and dfti for this chunk
             wfni, dfti = dft_nfor_ne(freqi, tvec, dvec)
             # append to list
