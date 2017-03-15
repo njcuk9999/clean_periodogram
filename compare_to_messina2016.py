@@ -68,7 +68,8 @@ LABELS = ['Unbinned computed freq',
           'binsize=0.1  linear spacing',
           'binsize=0.01  linear spacing']
 # define any set we don't want to run (using position in above arrays)
-SKIP = ['BPC_47A', 'BPC_47B']
+SKIP = ['BPC_47A', 'BPC_47B', 'BPC_52A', 'BPC_52B', 'BPC_52C', 'BPC_60A',
+        'BPC_60B']
 # boolean, skip those with files already found
 SKIPDONE = True
 
@@ -146,7 +147,7 @@ def run_clean_periodogram(time, data, edata, sid, bdata, bsize, filelist,
     # -----------------------------------------------------------------
     # Run clean
     freqs, wfn, dft, cdft = clean_periodogram(time, data, freqs=freq,
-                                              log=True, full=True)
+                                              log=True, full=True, maxsize=5000)
     # -----------------------------------------------------------------
     # Save to file
     table = Table()
