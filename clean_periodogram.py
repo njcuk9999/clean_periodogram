@@ -928,6 +928,32 @@ def clean_periodogram(time, data, **kwargs):
         return cdft
 
 
+def lombscargle_periodogram(time, data, freq=None):
+    """
+    Calculates the Lombscargle periodogram using astropy.stats
+
+
+    :param time: numpy array or list, input time(independent) vector
+
+    :param data: numpy array or list, input dependent vector
+
+    :param freq: numpy array or None, frequency vector if None uses
+                 astropy.stats.Lombscargle.autopower() to generate frequencies
+
+    :return freq: numpy array, frequency vector
+
+    :return power: numpy array, power spectrum
+    """
+    # Calculate lombscargle
+    from astropy.stats import LombScargle
+
+    if freq is None:
+        freq, power = LombScargle(time, data).autofrequency()
+    else:
+        power = LombScargle(time, data).power(freq)
+    return freq, power
+
+
 def plot_test_graph(time, data, freq, cdft, logged=True):
     """
     Plots a matplotlib test plot of the raw data and the CLEANed periodogram
@@ -946,10 +972,8 @@ def plot_test_graph(time, data, freq, cdft, logged=True):
 
     :return:
     """
-
     # Calculate lombscargle
-    from astropy.stats import LombScargle
-    power = LombScargle(time, data).power(freq)
+    freq, power = lombscargle_periodogram(time, data, freq)
 
     # plot
     import matplotlib.pyplot as plt
